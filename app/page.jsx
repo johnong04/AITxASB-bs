@@ -26,6 +26,7 @@ import {
   supabase,
   fetchCompanies as fetchCompaniesService,
 } from "@/src/services/supabase";
+import { searchCompanies, generateChartData } from "@/src/services/gemini";
 
 export default function SearchPage() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -33,14 +34,99 @@ export default function SearchPage() {
   const [filteredCompanies, setFilteredCompanies] = useState([]);
   const [chartData, setChartData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searching, setSearching] = useState(false);
   const [generating, setGenerating] = useState(false);
 
   useEffect(() => {
     fetchCompanies();
   }, []);
+
+  // Debounced search effect
   useEffect(() => {
-    filterCompanies();
+    const timeoutId = setTimeout(() => {
+      if (searchTerm.trim()) {
+        performSearch();
+      } else {
+        setFilteredCompanies(companies);
+        updateChartData(companies);
+      }
+    }, 500); // 500ms debounce
+
+    return () => clearTimeout(timeoutId);
   }, [searchTerm, companies]);
+
+  const performSearch = async () => {
+    if (!searchTerm.trim()) {
+      setFilteredCompanies(companies);
+      updateChartData(companies);
+      return;
+    }
+
+    setSearching(true);
+    try {
+      console.log(`🔍 Performing Gemini search for: "${searchTerm}"`);
+      const searchResults = await searchCompanies(searchTerm, companies);
+      console.log(`✅ Found ${searchResults.length} matching companies`);
+
+      setFilteredCompanies(searchResults);
+      updateChartData(searchResults);
+    } catch (error) {
+      console.error("Search error:", error);
+      // Fallback to basic search
+      const basicResults = companies.filter(
+        (company) =>
+          company.company_name
+            ?.toLowerCase()
+            .includes(searchTerm.toLowerCase()) ||
+          company.sector?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          company.description?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+      setFilteredCompanies(basicResults);
+      updateChartData(basicResults);
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const updateChartData = async (companiesList) => {
+    try {
+      const chartResult = await generateChartData(companiesList);
+      if (chartResult && chartResult.sectorDistribution) {
+        setChartData(chartResult.sectorDistribution);
+      } else {
+        // Fallback chart data
+        const sectorCounts = {};
+        companiesList.forEach((company) => {
+          sectorCounts[company.sector] =
+            (sectorCounts[company.sector] || 0) + 1;
+        });
+
+        const fallbackData = Object.entries(sectorCounts).map(
+          ([sector, count]) => ({
+            sector:
+              sector.length > 15 ? sector.substring(0, 15) + "..." : sector,
+            count,
+          })
+        );
+        setChartData(fallbackData);
+      }
+    } catch (error) {
+      console.error("Chart generation error:", error);
+      // Basic fallback
+      const sectorCounts = {};
+      companiesList.forEach((company) => {
+        sectorCounts[company.sector] = (sectorCounts[company.sector] || 0) + 1;
+      });
+
+      const fallbackData = Object.entries(sectorCounts).map(
+        ([sector, count]) => ({
+          sector: sector.length > 15 ? sector.substring(0, 15) + "..." : sector,
+          count,
+        })
+      );
+      setChartData(fallbackData);
+    }
+  };
 
   const fetchCompanies = async () => {
     try {
@@ -161,39 +247,12 @@ export default function SearchPage() {
     }
   };
 
-  const filterCompanies = () => {
-    if (!searchTerm.trim()) {
-      setFilteredCompanies(companies);
-    } else {
-      const filtered = companies.filter(
-        (company) =>
-          company.company_name
-            .toLowerCase()
-            .includes(searchTerm.toLowerCase()) ||
-          company.sector.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          company.description.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-      setFilteredCompanies(filtered);
-    }
-
-    // Update chart data
-    const sectorCounts = {};
-    filteredCompanies.forEach((company) => {
-      sectorCounts[company.sector] = (sectorCounts[company.sector] || 0) + 1;
-    });
-
-    const chartData = Object.entries(sectorCounts).map(([sector, count]) => ({
-      sector: sector.length > 15 ? sector.substring(0, 15) + "..." : sector,
-      count,
-    }));
-
-    setChartData(chartData);
-  };
-
   const generateSummary = async () => {
     setGenerating(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      console.log(
+        `📊 Generating grant provider report for ${filteredCompanies.length} companies`
+      );
 
       const summaryData = {
         companies: filteredCompanies,
@@ -229,18 +288,32 @@ export default function SearchPage() {
       <Navigation />
 
       <div className="container mx-auto px-4 py-8">
+        {" "}
         {/* Search Section */}
         <div className="mb-8">
           <div className="flex gap-4 items-center">
             <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+              <Search
+                className={`absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 ${
+                  searching ? "text-red-600 animate-pulse" : "text-gray-400"
+                }`}
+              />
               <Input
                 type="text"
                 placeholder="Search for social enterprises by name, sector, or description..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 h-12 text-lg border-2 border-gray-200 focus:border-red-500"
+                className={`pl-10 h-12 text-lg border-2 transition-colors ${
+                  searching
+                    ? "border-red-300 focus:border-red-500"
+                    : "border-gray-200 focus:border-red-500"
+                }`}
               />
+              {searching && (
+                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
+                </div>
+              )}
             </div>
             <Button
               onClick={generateSummary}
@@ -255,13 +328,28 @@ export default function SearchPage() {
               ) : (
                 <>
                   <Sparkles className="mr-2 h-4 w-4" />
-                  Generate Summary
+                  Generate Report
                 </>
               )}
             </Button>
           </div>
+          {searchTerm && (
+            <div className="mt-2 text-sm text-gray-600">
+              {searching ? (
+                <span className="flex items-center">
+                  <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-red-600 mr-2"></div>
+                  Using AI to search for "{searchTerm}"...
+                </span>
+              ) : (
+                <span>
+                  {filteredCompanies.length > 0
+                    ? `Found ${filteredCompanies.length} companies matching "${searchTerm}"`
+                    : `No companies found for "${searchTerm}"`}
+                </span>
+              )}
+            </div>
+          )}
         </div>
-
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Companies List */}
           <div className="lg:col-span-2">

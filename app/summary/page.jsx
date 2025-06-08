@@ -1,74 +1,118 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { ArrowLeft, FileText, Calendar, Search } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import Navigation from "@/components/navigation"
+import { useState, useEffect } from "react";
+import { ArrowLeft, FileText, Calendar, Search } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import Navigation from "@/components/navigation";
+import { generateSummary } from "@/src/services/gemini";
 
 export default function SummaryPage() {
-  const [summaryData, setSummaryData] = useState(null)
-  const [aiSummary, setAiSummary] = useState("")
-  const [loading, setLoading] = useState(true)
+  const [summaryData, setSummaryData] = useState(null);
+  const [aiSummary, setAiSummary] = useState("");
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadSummaryData()
-  }, [])
+    loadSummaryData();
+  }, []);
 
   const loadSummaryData = async () => {
     try {
-      const stored = localStorage.getItem("asbhive-summary")
+      const stored = localStorage.getItem("asbhive-summary");
       if (stored) {
-        const data = JSON.parse(stored)
-        setSummaryData(data)
+        const data = JSON.parse(stored);
+        setSummaryData(data);
 
         // Simulate AI summary generation
-        await generateAISummary(data)
+        await generateAISummary(data);
       }
     } catch (error) {
-      console.error("Error loading summary data:", error)
+      console.error("Error loading summary data:", error);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
-
+  };
   const generateAISummary = async (data) => {
-    // Simulate Gemini AI API call
-    await new Promise((resolve) => setTimeout(resolve, 1500))
+    try {
+      console.log("🤖 Generating AI-powered grant provider report...");
+      const { companies, searchTerm } = data;
 
-    const { companies, searchTerm } = data
-    const sectors = [...new Set(companies.map((c) => c.sector))]
-    const totalCompanies = companies.length
+      // Use Gemini to generate comprehensive grant provider report
+      const aiGeneratedSummary = await generateSummary(companies, searchTerm);
 
-    const summary = `Based on your search${searchTerm ? ` for "${searchTerm}"` : ""}, I found ${totalCompanies} social enterprises across ${sectors.length} sectors.
+      console.log("✅ AI report generated successfully");
+      setAiSummary(aiGeneratedSummary);
+    } catch (error) {
+      console.error("Error generating AI summary:", error);
 
-**Key Insights:**
+      // Fallback to basic summary if Gemini fails
+      const { companies, searchTerm } = data;
+      const sectors = [...new Set(companies.map((c) => c.sector))];
+      const totalCompanies = companies.length;
 
-• **Sector Diversity**: The companies span ${sectors.join(", ")}, showing a diverse ecosystem of social impact initiatives.
+      const fallbackSummary = `# Grant Provider Analysis Report
 
-• **Geographic Reach**: These enterprises are making impact across Southeast Asia, with presence in major cities like Kuala Lumpur, Bangkok, and Manila.
+## Executive Summary
+Analysis of ${totalCompanies} Malaysian social enterprises${
+        searchTerm ? ` matching "${searchTerm}"` : ""
+      } reveals significant funding opportunities across ${
+        sectors.length
+      } sectors.
 
-• **Impact Focus**: The organizations demonstrate strong commitment to addressing critical social challenges including environmental sustainability, healthcare access, and educational equity.
-
-**Sector Analysis:**
+## Sector Distribution & Grant Opportunities
 ${sectors
   .map((sector) => {
-    const sectorCompanies = companies.filter((c) => c.sector === sector)
-    return `• **${sector}**: ${sectorCompanies.length} ${sectorCompanies.length === 1 ? "company" : "companies"} - ${sectorCompanies.map((c) => c.company_name).join(", ")}`
+    const sectorCompanies = companies.filter((c) => c.sector === sector);
+    return `• **${sector}**: ${sectorCompanies.length} ${
+      sectorCompanies.length === 1 ? "organization" : "organizations"
+    } - ${sectorCompanies.map((c) => c.company_name).join(", ")}`;
   })
   .join("\n")}
 
-**Recommendations:**
-• Consider partnerships between complementary sectors for greater impact
-• Explore opportunities for knowledge sharing and best practices exchange
-• Investigate potential for collaborative funding or resource sharing initiatives
+## High-Impact Organizations Profile
+${companies
+  .slice(0, 5)
+  .map(
+    (company) => `
+### ${company.company_name}
+- **Sector**: ${company.sector}
+- **Impact Focus**: ${company.description?.substring(0, 150)}...
+- **Grant Readiness**: ${
+      company.social_enterprise_status === "Yes"
+        ? "Verified Social Enterprise"
+        : "Emerging Organization"
+    }
+${company.website_url ? `- **Website**: ${company.website_url}` : ""}
+`
+  )
+  .join("")}
 
-This ecosystem represents a strong foundation for social innovation in the region, with opportunities for enhanced collaboration and impact scaling.`
+## Strategic Grant Allocation Recommendations
+- **High Priority**: Focus on verified social enterprises with demonstrated impact
+- **Emerging Opportunities**: Support cross-sector collaboration initiatives
+- **Risk Mitigation**: Prioritize organizations with clear social enterprise status
 
-    setAiSummary(summary)
-  }
+## Market Intelligence
+- Diverse ecosystem spanning ${sectors.length} different sectors
+- Strong representation in ${sectors[0] || "various sectors"}
+- Growing momentum in sustainable development initiatives
 
+## Next Steps for Grant Providers
+1. Conduct detailed due diligence on featured organizations
+2. Consider sector-specific funding rounds
+3. Explore partnership opportunities for maximum impact
+4. Establish metrics for social impact measurement`;
+
+      setAiSummary(fallbackSummary);
+    }
+  };
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -76,11 +120,16 @@ This ecosystem represents a strong foundation for social innovation in the regio
         <div className="flex items-center justify-center h-96">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Generating AI summary...</p>
+            <p className="text-gray-600">
+              Generating AI-powered grant provider report...
+            </p>
+            <p className="text-gray-400 text-sm mt-1">
+              Using Gemini AI to analyze social enterprises
+            </p>
           </div>
         </div>
       </div>
-    )
+    );
   }
 
   if (!summaryData) {
@@ -91,8 +140,13 @@ This ecosystem represents a strong foundation for social innovation in the regio
           <Card className="max-w-2xl mx-auto text-center p-8">
             <CardContent>
               <FileText className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-              <h2 className="text-2xl font-bold text-gray-800 mb-2">No Summary Available</h2>
-              <p className="text-gray-600 mb-6">Please perform a search first to generate a summary of companies.</p>
+              <h2 className="text-2xl font-bold text-gray-800 mb-2">
+                No Summary Available
+              </h2>
+              <p className="text-gray-600 mb-6">
+                Please perform a search first to generate a summary of
+                companies.
+              </p>
               <Button asChild className="bg-red-600 hover:bg-red-700">
                 <a href="/">
                   <Search className="mr-2 h-4 w-4" />
@@ -103,7 +157,7 @@ This ecosystem represents a strong foundation for social innovation in the regio
           </Card>
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -112,14 +166,20 @@ This ecosystem represents a strong foundation for social innovation in the regio
 
       <div className="container mx-auto px-4 py-8">
         {/* Back Button */}
-        <Button variant="outline" className="mb-6" onClick={() => window.history.back()}>
+        <Button
+          variant="outline"
+          className="mb-6"
+          onClick={() => window.history.back()}
+        >
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Search
         </Button>
 
         {/* Summary Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">AI-Generated Summary</h1>
+          <h1 className="text-3xl font-bold text-gray-800 mb-2">
+            AI-Generated Summary
+          </h1>
           <div className="flex items-center gap-4 text-gray-600">
             <div className="flex items-center">
               <Calendar className="mr-2 h-4 w-4" />
@@ -131,7 +191,9 @@ This ecosystem represents a strong foundation for social innovation in the regio
                 minute: "2-digit",
               })}
             </div>
-            <Badge variant="outline">{summaryData.companies.length} Companies Analyzed</Badge>
+            <Badge variant="outline">
+              {summaryData.companies.length} Companies Analyzed
+            </Badge>
             {summaryData.searchTerm && (
               <Badge variant="secondary" className="bg-red-100 text-red-800">
                 Search: "{summaryData.searchTerm}"
@@ -149,38 +211,98 @@ This ecosystem represents a strong foundation for social innovation in the regio
                   <FileText className="mr-2 h-5 w-5 text-red-600" />
                   AI Analysis & Insights
                 </CardTitle>
-                <CardDescription>Generated by Gemini AI based on your search results</CardDescription>
-              </CardHeader>
+                <CardDescription>
+                  Generated by Gemini AI based on your search results
+                </CardDescription>
+              </CardHeader>{" "}
               <CardContent>
                 <div className="prose prose-gray max-w-none">
                   {aiSummary.split("\n").map((paragraph, index) => {
-                    if (paragraph.startsWith("**") && paragraph.endsWith("**")) {
+                    // Handle markdown headers
+                    if (paragraph.startsWith("# ")) {
                       return (
-                        <h3 key={index} className="text-lg font-semibold text-gray-800 mt-6 mb-3">
+                        <h1
+                          key={index}
+                          className="text-2xl font-bold text-gray-800 mt-8 mb-4 border-b border-gray-200 pb-2"
+                        >
+                          {paragraph.replace("# ", "")}
+                        </h1>
+                      );
+                    } else if (paragraph.startsWith("## ")) {
+                      return (
+                        <h2
+                          key={index}
+                          className="text-xl font-semibold text-gray-800 mt-6 mb-3"
+                        >
+                          {paragraph.replace("## ", "")}
+                        </h2>
+                      );
+                    } else if (paragraph.startsWith("### ")) {
+                      return (
+                        <h3
+                          key={index}
+                          className="text-lg font-medium text-gray-800 mt-4 mb-2"
+                        >
+                          {paragraph.replace("### ", "")}
+                        </h3>
+                      );
+                    }
+                    // Handle markdown bold formatting
+                    else if (
+                      paragraph.startsWith("**") &&
+                      paragraph.endsWith("**")
+                    ) {
+                      return (
+                        <h3
+                          key={index}
+                          className="text-lg font-semibold text-gray-800 mt-6 mb-3"
+                        >
                           {paragraph.replace(/\*\*/g, "")}
                         </h3>
-                      )
-                    } else if (paragraph.startsWith("• **")) {
-                      const [title, ...content] = paragraph.replace("• **", "").split("**: ")
-                      return (
-                        <div key={index} className="mb-2">
-                          <strong className="text-gray-800">{title}:</strong> {content.join(": ")}
-                        </div>
-                      )
-                    } else if (paragraph.startsWith("• ")) {
+                      );
+                    }
+                    // Handle bullet points with bold headers
+                    else if (paragraph.match(/^[•-] \*\*.*\*\*:/)) {
+                      const content = paragraph.replace(
+                        /^[•-] \*\*(.*)\*\*: (.*)/,
+                        "$1: $2"
+                      );
+                      const [title, ...rest] = content.split(": ");
                       return (
                         <div key={index} className="mb-2 ml-4">
-                          {paragraph.replace("• ", "• ")}
+                          <strong className="text-gray-800">{title}:</strong>{" "}
+                          {rest.join(": ")}
                         </div>
-                      )
-                    } else if (paragraph.trim()) {
+                      );
+                    }
+                    // Handle regular bullet points
+                    else if (paragraph.match(/^[•-] /)) {
                       return (
-                        <p key={index} className="mb-4 text-gray-700 leading-relaxed">
+                        <div key={index} className="mb-2 ml-4 text-gray-700">
+                          {paragraph.replace(/^[•-] /, "• ")}
+                        </div>
+                      );
+                    }
+                    // Handle numbered lists
+                    else if (paragraph.match(/^\d+\./)) {
+                      return (
+                        <div key={index} className="mb-2 ml-4 text-gray-700">
+                          {paragraph}
+                        </div>
+                      );
+                    }
+                    // Handle regular paragraphs
+                    else if (paragraph.trim()) {
+                      return (
+                        <p
+                          key={index}
+                          className="mb-4 text-gray-700 leading-relaxed"
+                        >
                           {paragraph}
                         </p>
-                      )
+                      );
                     }
-                    return null
+                    return null;
                   })}
                 </div>
               </CardContent>
@@ -191,16 +313,27 @@ This ecosystem represents a strong foundation for social innovation in the regio
           <div className="lg:col-span-1">
             <Card className="sticky top-4">
               <CardHeader>
-                <CardTitle className="text-gray-800">Analyzed Companies</CardTitle>
-                <CardDescription>Companies included in this summary</CardDescription>
+                <CardTitle className="text-gray-800">
+                  Analyzed Companies
+                </CardTitle>
+                <CardDescription>
+                  Companies included in this summary
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   {summaryData.companies.map((company) => (
-                    <div key={company.id} className="border-l-4 border-l-red-500 pl-4">
-                      <h4 className="font-semibold text-gray-800">{company.company_name}</h4>
+                    <div
+                      key={company.id}
+                      className="border-l-4 border-l-red-500 pl-4"
+                    >
+                      <h4 className="font-semibold text-gray-800">
+                        {company.company_name}
+                      </h4>
                       <p className="text-sm text-gray-600">{company.sector}</p>
-                      <p className="text-sm text-gray-500 mt-1">{company.contact_info}</p>
+                      <p className="text-sm text-gray-500 mt-1">
+                        {company.contact_info}
+                      </p>
                     </div>
                   ))}
                 </div>
@@ -210,5 +343,5 @@ This ecosystem represents a strong foundation for social innovation in the regio
         </div>
       </div>
     </div>
-  )
+  );
 }
