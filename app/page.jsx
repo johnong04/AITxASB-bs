@@ -389,23 +389,27 @@ export default function SearchPage() {
                           <CardDescription className="text-gray-600 mt-1">
                             {company.contact_info}
                           </CardDescription>
-                        </div>
+                        </div>{" "}
                         <div className="flex flex-col gap-2">
                           <Badge
                             variant="secondary"
-                            className="bg-red-100 text-red-800"
+                            className="bg-red-100 text-red-800 text-center"
                           >
                             {company.sector}
                           </Badge>
                           <Badge
                             variant="outline"
-                            className={
+                            className={`text-center ${
+                              company.social_enterprise_status === "Yes" ||
                               company.social_enterprise_status === "Certified"
                                 ? "bg-green-50 text-green-700 border-green-200"
                                 : "bg-blue-50 text-blue-700 border-blue-200"
-                            }
+                            }`}
                           >
-                            {company.social_enterprise_status}
+                            {company.social_enterprise_status === "Yes" ||
+                            company.social_enterprise_status === "Certified"
+                              ? "Verified Social Enterprise"
+                              : "Not Verified"}
                           </Badge>
                         </div>
                       </div>
