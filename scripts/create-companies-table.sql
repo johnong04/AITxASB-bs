@@ -27,8 +27,8 @@ CREATE INDEX idx_companies_company_name ON companies(company_name);
 ALTER TABLE companies ENABLE ROW LEVEL SECURITY;
 
 -- Create policies
--- Allow read access to all users for company data (excluding password)
-CREATE POLICY "Allow read access to company data" ON companies
+-- Allow public read access to all company data (excluding sensitive fields)
+CREATE POLICY "Allow public read access to companies" ON companies
     FOR SELECT USING (true);
 
 -- Allow insert for new companies

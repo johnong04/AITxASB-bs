@@ -1,35 +1,77 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { Search, TrendingUp, Sparkles } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
-import Navigation from "@/components/navigation"
-import { supabase } from "@/lib/auth"
+import { useState, useEffect } from "react";
+import { Search, TrendingUp, Sparkles } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
+import Navigation from "@/components/navigation";
+import {
+  supabase,
+  fetchCompanies as fetchCompaniesService,
+} from "@/src/services/supabase";
 
 export default function SearchPage() {
-  const [searchTerm, setSearchTerm] = useState("")
-  const [companies, setCompanies] = useState([])
-  const [filteredCompanies, setFilteredCompanies] = useState([])
-  const [chartData, setChartData] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [generating, setGenerating] = useState(false)
+  const [searchTerm, setSearchTerm] = useState("");
+  const [companies, setCompanies] = useState([]);
+  const [filteredCompanies, setFilteredCompanies] = useState([]);
+  const [chartData, setChartData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
 
   useEffect(() => {
-    fetchCompanies()
-  }, [])
-
+    fetchCompanies();
+  }, []);
   useEffect(() => {
-    filterCompanies()
-  }, [searchTerm, companies])
+    filterCompanies();
+  }, [searchTerm, companies]);
 
   const fetchCompanies = async () => {
     try {
-      console.log("Fetching companies from Supabase...")
-      const { data, error } = await supabase.from("companies").select(`
+      console.log("Fetching companies from Supabase...");
+
+      // Test the connection first
+      const { data: testData, error: testError } = await supabase
+        .from("companies")
+        .select("count", { count: "exact" });
+
+      console.log("Connection test:", { testData, testError });
+
+      // Use the service layer function first
+      const data = await fetchCompaniesService();
+
+      if (data && data.length > 0) {
+        console.log(
+          "✅ Fetched companies from service:",
+          data.length,
+          "companies"
+        );
+        setCompanies(data);
+        setFilteredCompanies(data);
+        setLoading(false);
+        return;
+      }
+
+      // Fall back to direct query if service fails
+      console.log("Service layer returned empty, trying direct query...");
+      const { data: directData, error } = await supabase.from("companies")
+        .select(`
           id,
           company_name,
           email,
@@ -40,24 +82,34 @@ export default function SearchPage() {
           social_enterprise_status,
           related_news_updates,
           program_participation
-        `)
+        `);
 
       if (error) {
-        console.error("Supabase error:", error)
-        throw error
+        console.error("❌ Supabase error:", error);
+        console.error("Error details:", {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code,
+        });
       }
 
-      console.log("Fetched companies:", data)
-
-      if (data && data.length > 0) {
-        setCompanies(data)
-        setFilteredCompanies(data)
-        setLoading(false)
-        return
+      if (directData && directData.length > 0) {
+        console.log(
+          "✅ Fetched companies (direct):",
+          directData.length,
+          "companies"
+        );
+        setCompanies(directData);
+        setFilteredCompanies(directData);
+        setLoading(false);
+        return;
+      } else {
+        console.log("❌ No data returned from direct query");
       }
 
       // Fall back to mock data if no data
-      console.log("Using mock data...")
+      console.log("Using mock data...");
       const mockData = [
         {
           id: 1,
@@ -66,7 +118,8 @@ export default function SearchPage() {
           description:
             "Developing sustainable technology solutions for waste management and renewable energy. Our innovative approach combines IoT sensors with AI analytics to optimize waste collection routes and reduce carbon emissions.",
           website_url: "https://ecotech-solutions.com",
-          contact_info: "Phone: +60 3 2123 4567, Address: Kuala Lumpur, Malaysia",
+          contact_info:
+            "Phone: +60 3 2123 4567, Address: Kuala Lumpur, Malaysia",
           social_enterprise_status: "Certified",
           related_news_updates: "Recently won the Green Innovation Award 2024.",
           program_participation: "ASB Accelerator Program 2023",
@@ -95,65 +148,67 @@ export default function SearchPage() {
           related_news_updates: "Launched new AI-powered learning platform.",
           program_participation: "UNESCO Education Program",
         },
-      ]
+      ];
 
-      setCompanies(mockData)
-      setFilteredCompanies(mockData)
+      setCompanies(mockData);
+      setFilteredCompanies(mockData);
     } catch (error) {
-      console.error("Error fetching companies:", error)
-      setCompanies([])
-      setFilteredCompanies([])
+      console.error("Error fetching companies:", error);
+      setCompanies([]);
+      setFilteredCompanies([]);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const filterCompanies = () => {
     if (!searchTerm.trim()) {
-      setFilteredCompanies(companies)
+      setFilteredCompanies(companies);
     } else {
       const filtered = companies.filter(
         (company) =>
-          company.company_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          company.company_name
+            .toLowerCase()
+            .includes(searchTerm.toLowerCase()) ||
           company.sector.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          company.description.toLowerCase().includes(searchTerm.toLowerCase()),
-      )
-      setFilteredCompanies(filtered)
+          company.description.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+      setFilteredCompanies(filtered);
     }
 
     // Update chart data
-    const sectorCounts = {}
+    const sectorCounts = {};
     filteredCompanies.forEach((company) => {
-      sectorCounts[company.sector] = (sectorCounts[company.sector] || 0) + 1
-    })
+      sectorCounts[company.sector] = (sectorCounts[company.sector] || 0) + 1;
+    });
 
     const chartData = Object.entries(sectorCounts).map(([sector, count]) => ({
       sector: sector.length > 15 ? sector.substring(0, 15) + "..." : sector,
       count,
-    }))
+    }));
 
-    setChartData(chartData)
-  }
+    setChartData(chartData);
+  };
 
   const generateSummary = async () => {
-    setGenerating(true)
+    setGenerating(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 2000))
+      await new Promise((resolve) => setTimeout(resolve, 2000));
 
       const summaryData = {
         companies: filteredCompanies,
         searchTerm,
         timestamp: new Date().toISOString(),
-      }
+      };
 
-      localStorage.setItem("asbhive-summary", JSON.stringify(summaryData))
-      window.location.href = "/summary"
+      localStorage.setItem("asbhive-summary", JSON.stringify(summaryData));
+      window.location.href = "/summary";
     } catch (error) {
-      console.error("Error generating summary:", error)
+      console.error("Error generating summary:", error);
     } finally {
-      setGenerating(false)
+      setGenerating(false);
     }
-  }
+  };
 
   if (loading) {
     return (
@@ -166,7 +221,7 @@ export default function SearchPage() {
           </div>
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -213,7 +268,9 @@ export default function SearchPage() {
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-2xl font-bold text-gray-800">
                 Social Enterprises
-                <span className="text-lg font-normal text-gray-600 ml-2">({filteredCompanies.length} found)</span>
+                <span className="text-lg font-normal text-gray-600 ml-2">
+                  ({filteredCompanies.length} found)
+                </span>
               </h2>
             </div>
 
@@ -221,21 +278,35 @@ export default function SearchPage() {
               {filteredCompanies.length === 0 ? (
                 <Card className="p-8 text-center">
                   <CardContent>
-                    <p className="text-gray-500 text-lg">No companies found matching your search.</p>
-                    <p className="text-gray-400 mt-2">Try adjusting your search terms or browse all companies.</p>
+                    <p className="text-gray-500 text-lg">
+                      No companies found matching your search.
+                    </p>
+                    <p className="text-gray-400 mt-2">
+                      Try adjusting your search terms or browse all companies.
+                    </p>
                   </CardContent>
                 </Card>
               ) : (
                 filteredCompanies.map((company) => (
-                  <Card key={company.id} className="hover:shadow-lg transition-shadow border-l-4 border-l-red-500">
+                  <Card
+                    key={company.id}
+                    className="hover:shadow-lg transition-shadow border-l-4 border-l-red-500"
+                  >
                     <CardHeader>
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
-                          <CardTitle className="text-xl text-gray-800">{company.company_name}</CardTitle>
-                          <CardDescription className="text-gray-600 mt-1">{company.contact_info}</CardDescription>
+                          <CardTitle className="text-xl text-gray-800">
+                            {company.company_name}
+                          </CardTitle>
+                          <CardDescription className="text-gray-600 mt-1">
+                            {company.contact_info}
+                          </CardDescription>
                         </div>
                         <div className="flex flex-col gap-2">
-                          <Badge variant="secondary" className="bg-red-100 text-red-800">
+                          <Badge
+                            variant="secondary"
+                            className="bg-red-100 text-red-800"
+                          >
                             {company.sector}
                           </Badge>
                           <Badge
@@ -252,19 +323,29 @@ export default function SearchPage() {
                       </div>
                     </CardHeader>
                     <CardContent>
-                      <p className="text-gray-700 mb-4">{company.description}</p>
+                      <p className="text-gray-700 mb-4">
+                        {company.description}
+                      </p>
 
                       {company.program_participation && (
                         <div className="mb-3">
-                          <h4 className="text-sm font-semibold text-gray-800 mb-1">Program Participation:</h4>
-                          <p className="text-sm text-gray-600">{company.program_participation}</p>
+                          <h4 className="text-sm font-semibold text-gray-800 mb-1">
+                            Program Participation:
+                          </h4>
+                          <p className="text-sm text-gray-600">
+                            {company.program_participation}
+                          </p>
                         </div>
                       )}
 
                       {company.related_news_updates && (
                         <div className="mb-4">
-                          <h4 className="text-sm font-semibold text-gray-800 mb-1">Recent Updates:</h4>
-                          <p className="text-sm text-gray-600">{company.related_news_updates}</p>
+                          <h4 className="text-sm font-semibold text-gray-800 mb-1">
+                            Recent Updates:
+                          </h4>
+                          <p className="text-sm text-gray-600">
+                            {company.related_news_updates}
+                          </p>
                         </div>
                       )}
 
@@ -278,7 +359,10 @@ export default function SearchPage() {
                           Visit Website →
                         </a>
                         {company.email && (
-                          <a href={`mailto:${company.email}`} className="text-gray-600 hover:text-gray-800 text-sm">
+                          <a
+                            href={`mailto:${company.email}`}
+                            className="text-gray-600 hover:text-gray-800 text-sm"
+                          >
                             Contact: {company.email}
                           </a>
                         )}
@@ -298,14 +382,22 @@ export default function SearchPage() {
                   <TrendingUp className="mr-2 h-5 w-5 text-red-600" />
                   Sector Distribution
                 </CardTitle>
-                <CardDescription>Companies by sector in current search</CardDescription>
+                <CardDescription>
+                  Companies by sector in current search
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 {chartData.length > 0 ? (
                   <ResponsiveContainer width="100%" height={300}>
                     <BarChart data={chartData}>
                       <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="sector" angle={-45} textAnchor="end" height={80} fontSize={12} />
+                      <XAxis
+                        dataKey="sector"
+                        angle={-45}
+                        textAnchor="end"
+                        height={80}
+                        fontSize={12}
+                      />
                       <YAxis />
                       <Tooltip />
                       <Bar dataKey="count" fill="#dc2626" />
@@ -325,5 +417,5 @@ export default function SearchPage() {
         </div>
       </div>
     </div>
-  )
+  );
 }
